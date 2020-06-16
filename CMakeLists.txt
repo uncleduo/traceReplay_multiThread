@@ -1,7 +1,9 @@
 project(replayTraceMultiThread)
 cmake_minimum_required( VERSION 2.8 )
 
-set(CMAKE_C_FLAGS "${CMAKE_CXX_FLAGS} -std=c99")
+find_package(Threads)
+
+set(CMAKE_C_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11 -pthread")
 
 set(CMAKE_BUILD_TYPE "Debug")
 set(CMAKE_C_FLAGS_DEBUG "$ENV{CXXFLAGS} -O0 -Wall -g2 -ggdb")
@@ -18,9 +20,9 @@ link_directories(${PROJECT_SOURCE_DIR})
 
 add_subdirectory(src/traceItem)
 add_subdirectory(src/utils)
-
+add_compile_options(-pthread)
 add_definitions(-std=c++11)
 
 add_executable(replayTraceMultiThread src/replayTraceMultiThread.cpp)
 
-target_link_libraries(replayTraceMultiThread traceItem utils)
+target_link_libraries(replayTraceMultiThread traceItem utils ${CMAKE_THREAD_LIBS_INIT})

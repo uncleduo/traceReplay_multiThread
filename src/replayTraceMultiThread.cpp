@@ -23,8 +23,8 @@ typedef struct stAdderPara
 
 bool initMode = true;
 std::queue<traceItemST> traceQueue;
-pthread_mutex_t mutex;
-pthread_cond_t cond_queue = PTHREAD_COND_INITIALIZER;
+pthread_mutex_t queue_edit_mutex;
+pthread_cond_t queue_edit_cond = PTHREAD_COND_INITIALIZER;
 
 bool adder_sleep = false;
 bool trace_end = false;
@@ -37,17 +37,24 @@ void traceUser(ofstream &logfile)
     traceItemST thisUserTrace;
     cout << "[USER]: Start" << endl;
     opType tempTraceOP;
-    int count = 0;
-    while (traceQueue.size() > 0 || !trace_end)
+    int use_count = 0;
+    while (!trace_end)
     {
         if (traceQueue.size() > 0)
         {
-            pthread_mutex_lock(&mutex);
+            pthread_mutex_lock(&queue_edit_mutex);
+            //pthread_cond_wait(&queue_edit_cond, &queue_edit_mutex);
             thisUserTrace = traceQueue.front();
             //handleTraceItem(thisUserTrace);
-            count++;
+            use_count++;
             traceQueue.pop();
-            pthread_mutex_unlock(&mutex);
+            if (adder_sleep && traceQueue.size() < 100)
+            {
+                pthread_cond_signal(&queue_edit_cond);
+                //cout << "[USER] Please get up" << endl;
+            }
+
+            pthread_mutex_unlock(&queue_edit_mutex);
             //cout << "[USER]: replaying: " << count << endl;
             if (!check_uselessOP(thisUserTrace.traceOptype))
             {
@@ -56,11 +63,14 @@ void traceUser(ofstream &logfile)
                 gettimeofday(&timeEnd, NULL);
                 logfile << thisUserTrace.opName << "\t" << timeStart.tv_sec << "." << timeStart.tv_usec << "\t" << timeEnd.tv_sec << "." << timeEnd.tv_usec << "\t" << timeCost << endl;
             }
-            //usleep(500000);
+        }
+        else
+        {
+            pthread_cond_signal(&queue_edit_cond);
         }
     }
     logfile.close();
-    cout << " [USER--END] " << endl;
+    cout << "[USER--END] Used: " << use_count << endl;
 }
 
 void *traceAdder(void *adderParaPara)
@@ -87,17 +97,27 @@ void *traceAdder(void *adderParaPara)
             else
             {
                 thisAdderTrace = getTrace(tempLine, adderPara.workPathPara);
-                pthread_mutex_lock(&mutex);
+                pthread_mutex_lock(&queue_edit_mutex);
                 traceQueue.push(thisAdderTrace);
                 addCount++;
                 //cout << "[ADDER]: NO." << addCount << ":" << tempLine << endl;
-                pthread_mutex_unlock(&mutex);
+                pthread_mutex_unlock(&queue_edit_mutex);
             }
+        }
+        else
+        {
+            adder_sleep = true;
+            //cout << "[ADDER]: Sleep now." << endl;
+            pthread_mutex_lock(&queue_edit_mutex);
+            pthread_cond_wait(&queue_edit_cond, &queue_edit_mutex);
+            //cout << "[ADDER]: Wake up." << endl;
+            pthread_mutex_unlock(&queue_edit_mutex);
+            adder_sleep = false;
         }
     }
     trace_end = true;
     trace.close();
-    cout << " [ADDER--END] ADD: " << addCount << endl;
+    cout << "[ADDER--END] ADD: " << addCount << endl;
 }
 
 int main(int argc, char **argv)
@@ -186,7 +206,7 @@ int main(int argc, char **argv)
     adderParaST adderPara = {tracePath, workPath, logPath};
     pthread_t user;
 
-    pthread_mutex_init(&mutex, NULL);
+    pthread_mutex_init(&queue_edit_mutex, NULL);
     pthread_create(&user, NULL, traceAdder, &adderPara);
 
     traceUser(logFile);
