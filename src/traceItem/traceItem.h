@@ -69,8 +69,7 @@ typedef struct stDirItem{
     string dirPath;
 }dirItemST;
 
-std::vector< std::string > splitString_STL(const std::string& str, const std::string& pattern);
-
+bool check_uselessOP(opType target);
 
 traceItemST getTrace(string lineContent, string workPath);
 
@@ -79,6 +78,5 @@ void handleTraceItem(traceItemST traceItem);
 void initFileSet(traceItemST traceItem);
 
 int genFromFileSet();
-
 
 #endif
