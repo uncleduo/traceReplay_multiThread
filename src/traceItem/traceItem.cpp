@@ -1,4 +1,5 @@
 #include "traceItem.h"
+#include "../utils/traceUtils.h"
 
 int wrongTraceCount = 0;
 
@@ -6,23 +7,16 @@ std::set<std::string> fileSet, dirSet, dirCreateSet, fileCreateSet,dirGenSet,fil
 map<string, DIR*> openedDirDict;
 map<string, int> openedFileDict;
 
-//copy splitCode from Internet
-std::vector< std::string > splitString_STL(const std::string& str, const std::string& pattern){
-    std::vector<std::string> subStrings;
-    if (str.empty())
-        return subStrings;
-    std::string strs = str + pattern;
+set<opType> uselessOP{op_error, op_emptyline, op_flush, op_getattr, op_read, op_write, op_symlink, op_close, op_closedir};
 
-    size_t pos = strs.find(pattern);
-    size_t size = strs.size();
-
-    while (pos != std::string::npos) {
-        std::string sub = strs.substr(0,pos);
-        subStrings.push_back(sub);
-        strs = strs.substr(pos+1,size);
-        pos = strs.find(pattern);
+bool check_uselessOP(opType target){
+    if (uselessOP.find(target) == uselessOP.end())
+    {
+        return false;
+    }else
+    {
+        return true;
     }
-    return subStrings;
 }
 
 traceItemST getTrace(string lineContent, string workPath){
