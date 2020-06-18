@@ -3,7 +3,7 @@
 #include <vector>
 #include <cstdlib>
 #include <string.h>
-
+#include <set>
 #include <ctime>
 #include <sys/time.h>
 
@@ -29,16 +29,21 @@ pthread_cond_t queue_edit_cond = PTHREAD_COND_INITIALIZER;
 bool adder_sleep = false;
 bool trace_end = false;
 
+int adderSleepThreshold = 500;
+int adderWakeThreshold = 100;
+
 void traceUser(ofstream &logfile)
 {
+    //sleep(1);
     struct timeval timeStart;
     struct timeval timeEnd;
     int timeCost = 0;
     traceItemST thisUserTrace;
+    set<opType> localOP = {op_close,op_closedir};
     cout << "[USER]: Start" << endl;
     opType tempTraceOP;
     int use_count = 0;
-    while (!trace_end)
+    while (!trace_end || traceQueue.size() > 0)
     {
         if (traceQueue.size() > 0)
         {
@@ -48,28 +53,42 @@ void traceUser(ofstream &logfile)
             //handleTraceItem(thisUserTrace);
             use_count++;
             traceQueue.pop();
-            if (adder_sleep && traceQueue.size() < 100)
-            {
-                pthread_cond_signal(&queue_edit_cond);
-                //cout << "[USER] Please get up" << endl;
-            }
-
             pthread_mutex_unlock(&queue_edit_mutex);
-            //cout << "[USER]: replaying: " << count << endl;
+            if (adder_sleep && traceQueue.size() < adderWakeThreshold)
+            {
+                    pthread_cond_signal(&queue_edit_cond);
+                    adder_sleep = false;
+            }
+            //cout << "[USER]: replaying: " << use_count << endl;
             if (!check_uselessOP(thisUserTrace.traceOptype))
             {
                 gettimeofday(&timeStart, NULL);
                 handleTraceItem(thisUserTrace);
+                //usleep(10000);
                 gettimeofday(&timeEnd, NULL);
-                logfile << thisUserTrace.opName << "\t" << timeStart.tv_sec << "." << timeStart.tv_usec << "\t" << timeEnd.tv_sec << "." << timeEnd.tv_usec << "\t" << timeCost << endl;
+                timeCost = (timeEnd.tv_sec - timeStart.tv_sec)*1000000 + (timeEnd.tv_usec - timeStart.tv_usec);
+                if(localOP.find(thisUserTrace.traceOptype) == localOP.end()){
+                    //remove local op
+                    logfile << thisUserTrace.opName << "\t" << timeStart.tv_sec << "." << timeStart.tv_usec << "\t" << timeEnd.tv_sec << "." << timeEnd.tv_usec << "\t" << timeCost << endl;
+                }
             }
         }
         else
         {
-            pthread_cond_signal(&queue_edit_cond);
+            if (!trace_end && adder_sleep)
+            {
+                pthread_cond_signal(&queue_edit_cond);
+                adder_sleep = false;
+                //cout << "Wake up plz."<<endl;
+            }else
+            {
+                //cout << "[USER--DEBUG]: No item in queue. "<<endl;
+            }
+            
         }
     }
     logfile.close();
+    cout <<traceQueue.size() <<endl;
     cout << "[USER--END] Used: " << use_count << endl;
 }
 
@@ -82,12 +101,12 @@ void *traceAdder(void *adderParaPara)
     traceItemST thisAdderTrace;
     ifstream trace;
     int addCount = 0;
-    cout << "[ADDER]: Start to add trace:" << adderPara.tracePathPara << endl;
+    //cout << "[ADDER]: Start to add trace:" << adderPara.tracePathPara << endl;
     trace.open(adderPara.tracePathPara.c_str(), ios::in);
 
     while (!trace.eof())
     {
-        if (traceQueue.size() < 500)
+        if (traceQueue.size() < adderSleepThreshold)
         {
             getline(trace, tempLine);
             if (tempLine.empty())
@@ -112,7 +131,6 @@ void *traceAdder(void *adderParaPara)
             pthread_cond_wait(&queue_edit_cond, &queue_edit_mutex);
             //cout << "[ADDER]: Wake up." << endl;
             pthread_mutex_unlock(&queue_edit_mutex);
-            adder_sleep = false;
         }
     }
     trace_end = true;
