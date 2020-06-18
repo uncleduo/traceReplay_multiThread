@@ -158,8 +158,8 @@ int main(int argc, char **argv)
     {
         workerNo = string(argv[4]);
     }
-    //string logDir = "/home/ceph/cyx/metadata-management/experiments/scripts/migrate/ai-training/traceLog/";
-    string logDir = "/home/ceph/duo/traceReplay_multiThread/test/";
+    string logDir = "/home/ceph/cyx/metadata-management/experiments/scripts/migrate/ai-training/traceLog/";
+    //string logDir = "/home/ceph/duo/traceReplay_multiThread/test/";
 
     string logPath = logDir + *(splitString_STL(workString, "/").end() - 2) + workerNo + ".log";
     ofstream logFile;
