@@ -171,7 +171,8 @@ int main(int argc, char **argv)
     
     vector<string> subTracePath = splitString_STL(tracePath, "/");
     //string workPath = "/mnt/ceph-client-1/trace/"+subTracePath.back();
-    string workPath = workString + subTracePath.back();
+    //string workPath = workString + subTracePath.back();
+    string workPath = workString;
     if (debug_mode)
     {
         cout << "[WAN] Debug Mode Now"<<endl;
