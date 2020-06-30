@@ -5,3 +5,5 @@ test/
 
 *.swp
 
+*.gz
+*.tar
