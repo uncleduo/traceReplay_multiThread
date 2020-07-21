@@ -24,7 +24,10 @@ typedef struct stAdderPara
 bool initMode = true;
 std::queue<traceItemST> traceQueue;
 pthread_mutex_t queue_edit_mutex;
+pthread_mutex_t adder_edit_mutex;
 pthread_cond_t queue_edit_cond = PTHREAD_COND_INITIALIZER;
+
+string workerNoGlobal = "";
 
 bool adder_sleep = false;
 bool trace_end = false;
@@ -35,12 +38,12 @@ int adderWakeThreshold = 100;
 
 void traceUser(ofstream &logfile)
 {
-    //sleep(1);
+    sleep(1);
     struct timeval timeStart;
     struct timeval timeEnd;
     int timeCost = 0;
     traceItemST thisUserTrace;
-    set<opType> localOP = {op_close,op_closedir};
+    set<opType> localOP = {op_close, op_closedir};
     //cout << "[USER]: Start" << endl;
     opType tempTraceOP;
     int use_count = 0;
@@ -57,8 +60,10 @@ void traceUser(ofstream &logfile)
             pthread_mutex_unlock(&queue_edit_mutex);
             if (adder_sleep && traceQueue.size() < adderWakeThreshold)
             {
-                    pthread_cond_signal(&queue_edit_cond);
-                    adder_sleep = false;
+                pthread_cond_signal(&queue_edit_cond);
+                pthread_mutex_lock(&adder_edit_mutex);
+                adder_sleep = false;
+                pthread_mutex_unlock(&adder_edit_mutex);
             }
             //cout << "[USER]: replaying: " << use_count << endl;
             if (!check_uselessOP(thisUserTrace.traceOptype))
@@ -67,8 +72,9 @@ void traceUser(ofstream &logfile)
                 handleTraceItem(thisUserTrace);
                 //usleep(10000);
                 gettimeofday(&timeEnd, NULL);
-                timeCost = (timeEnd.tv_sec - timeStart.tv_sec)*1000000 + (timeEnd.tv_usec - timeStart.tv_usec);
-                if(localOP.find(thisUserTrace.traceOptype) == localOP.end()){
+                timeCost = (timeEnd.tv_sec - timeStart.tv_sec) * 1000000 + (timeEnd.tv_usec - timeStart.tv_usec);
+                if (localOP.find(thisUserTrace.traceOptype) == localOP.end())
+                {
                     //remove local op
                     logfile << thisUserTrace.opName << "\t" << timeStart.tv_sec << "." << timeStart.tv_usec << "\t" << timeEnd.tv_sec << "." << timeEnd.tv_usec << "\t" << timeCost << endl;
                 }
@@ -79,17 +85,19 @@ void traceUser(ofstream &logfile)
             if (!trace_end && adder_sleep)
             {
                 pthread_cond_signal(&queue_edit_cond);
+                pthread_mutex_lock(&adder_edit_mutex);
                 adder_sleep = false;
+                pthread_mutex_unlock(&adder_edit_mutex);
                 //cout << "Wake up plz."<<endl;
-            }else
-            {
-                //cout << "[USER--DEBUG]: No item in queue. "<<endl;
             }
-            
+            else
+            {
+                cout << "[USER" << workerNoGlobal << "--DEBUG]: No item in queue. " << endl;
+            }
         }
     }
     logfile.close();
-    cout <<traceQueue.size() <<endl;
+    cout << traceQueue.size() << endl;
     //cout << "[USER--END] Used: " << use_count << endl;
 }
 
@@ -107,32 +115,43 @@ void *traceAdder(void *adderParaPara)
 
     while (!trace.eof())
     {
-        if (traceQueue.size() < adderSleepThreshold)
+        if (traceQueue.size() == 0 && !adder_sleep)
         {
-            getline(trace, tempLine);
-            if (tempLine.empty())
-            {
-                continue;
-            }
-            else
-            {
-                thisAdderTrace = getTrace(tempLine, adderPara.workPathPara);
-                pthread_mutex_lock(&queue_edit_mutex);
-                traceQueue.push(thisAdderTrace);
-                addCount++;
-                //cout << "[ADDER]: NO." << addCount << ":" << tempLine << endl;
-                pthread_mutex_unlock(&queue_edit_mutex);
-            }
+            //cout << "[Adder" << workerNoGlobal << "--DEBUG]: No item in queue, addcount: " << addCount << endl;
+        }
+
+        getline(trace, tempLine);
+        if (tempLine.empty())
+        {
+            continue;
         }
         else
         {
+            //cout << traceQueue.size() <<endl;
+            thisAdderTrace = getTrace(tempLine, adderPara.workPathPara);
+            pthread_mutex_lock(&queue_edit_mutex);
+            traceQueue.push(thisAdderTrace);
+            addCount++;
+            //cout << "[ADDER]: NO." << addCount << ":" << tempLine << endl;
+            pthread_mutex_unlock(&queue_edit_mutex);
+        }
+
+        if (traceQueue.size() < adderSleepThreshold)
+        {
+            continue;
+        }
+        else
+        {
+            pthread_mutex_lock(&adder_edit_mutex);
             adder_sleep = true;
+            pthread_mutex_unlock(&adder_edit_mutex);
             //cout << "[ADDER]: Sleep now." << endl;
             pthread_mutex_lock(&queue_edit_mutex);
             pthread_cond_wait(&queue_edit_cond, &queue_edit_mutex);
             //cout << "[ADDER]: Wake up." << endl;
             pthread_mutex_unlock(&queue_edit_mutex);
         }
+
     }
     trace_end = true;
     trace.close();
@@ -157,30 +176,30 @@ int main(int argc, char **argv)
     }
     else
     {
-        if (strcmp(argv[4],"Debug")==0)
+        if (strcmp(argv[4], "Debug") == 0)
         {
             debug_mode = true;
             workerNo = "";
-        }else
+        }
+        else
         {
             workerNo = string(argv[4]);
+            workerNoGlobal = workerNo;
         }
-        
     }
     string logDir = "/home/ceph/cyx/metadata-management/experiments/scripts/migrate/ai-training/traceLog/";
-    
+
     vector<string> subTracePath = splitString_STL(tracePath, "/");
     //string workPath = "/mnt/ceph-client-1/trace/"+subTracePath.back();
     //string workPath = workString + subTracePath.back();
     string workPath = workString;
     if (debug_mode)
     {
-        cout << "[WAN] Debug Mode Now"<<endl;
+        cout << "[WAN] Debug Mode Now" << endl;
         logDir = "/home/ceph/duo/traceReplay_multiThread/test/";
-
     }
-    
-    string logPath = logDir + *(splitString_STL(workString, "/").end() - 2) + workerNo + ".log";
+
+    string logPath = logDir + *(splitString_STL(workString, "/").end() - 2) + "_" + workerNo + ".log";
 
     ofstream logFile;
     logFile.open(logPath.c_str(), ios::trunc);
@@ -201,7 +220,6 @@ int main(int argc, char **argv)
         return 0;
     }
 
-    
     string thisLine;
     ifstream trace;
     vector<traceItemST> traceVector;
