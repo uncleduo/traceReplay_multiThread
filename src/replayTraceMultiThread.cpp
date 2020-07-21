@@ -29,7 +29,7 @@ pthread_cond_t queue_edit_cond = PTHREAD_COND_INITIALIZER;
 
 string workerNoGlobal = "";
 
-bool adder_sleep = false;
+volatile bool adder_sleep = false;
 bool trace_end = false;
 bool debug_mode = false;
 
