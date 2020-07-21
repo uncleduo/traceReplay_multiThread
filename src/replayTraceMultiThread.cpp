@@ -39,6 +39,11 @@ int adderWakeThreshold = 100;
 void traceUser(ofstream &logfile)
 {
     sleep(1);
+
+    string debugLogPath = "/home/ceph/duo/traceReplay_multiThread/test/debug/"+workerNoGlobal;
+    ofstream debugLog;
+    debugLog.open(debugLogPath.c_str(), ios::trunc);
+
     struct timeval timeStart;
     struct timeval timeEnd;
     int timeCost = 0;
@@ -61,11 +66,8 @@ void traceUser(ofstream &logfile)
             if (adder_sleep && traceQueue.size() < adderWakeThreshold)
             {
                 pthread_cond_signal(&queue_edit_cond);
-                pthread_mutex_lock(&adder_edit_mutex);
-                adder_sleep = false;
-                pthread_mutex_unlock(&adder_edit_mutex);
             }
-            //cout << "[USER]: replaying: " << use_count << endl;
+
             if (!check_uselessOP(thisUserTrace.traceOptype))
             {
                 gettimeofday(&timeStart, NULL);
@@ -85,19 +87,20 @@ void traceUser(ofstream &logfile)
             if (!trace_end && adder_sleep)
             {
                 pthread_cond_signal(&queue_edit_cond);
-                pthread_mutex_lock(&adder_edit_mutex);
-                adder_sleep = false;
-                pthread_mutex_unlock(&adder_edit_mutex);
+
                 //cout << "Wake up plz."<<endl;
             }
             else
             {
-                cout << "[USER" << workerNoGlobal << "--DEBUG]: No item in queue. " << endl;
+                cout << "[USER" << workerNoGlobal << "--WARN]: Nothing in queue, adder not sleep, trace not end! " << endl;
+                debugLog << "[USER" << workerNoGlobal << "--WARN]: Nothing in queue, adder not sleep, trace not end!" << endl;
+                pthread_cond_signal(&queue_edit_cond);
             }
         }
     }
     logfile.close();
     cout << traceQueue.size() << endl;
+    debugLog.close();
     //cout << "[USER--END] Used: " << use_count << endl;
 }
 
@@ -142,16 +145,16 @@ void *traceAdder(void *adderParaPara)
         }
         else
         {
-            pthread_mutex_lock(&adder_edit_mutex);
             adder_sleep = true;
-            pthread_mutex_unlock(&adder_edit_mutex);
+
             //cout << "[ADDER]: Sleep now." << endl;
             pthread_mutex_lock(&queue_edit_mutex);
             pthread_cond_wait(&queue_edit_cond, &queue_edit_mutex);
             //cout << "[ADDER]: Wake up." << endl;
             pthread_mutex_unlock(&queue_edit_mutex);
-        }
 
+            adder_sleep = false;
+        }
     }
     trace_end = true;
     trace.close();
