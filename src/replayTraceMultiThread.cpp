@@ -6,7 +6,7 @@
 #include <set>
 #include <ctime>
 #include <sys/time.h>
-
+#include <atomic>
 #include <pthread.h>
 
 #include "traceItem/traceItem.h"
@@ -29,9 +29,9 @@ pthread_cond_t queue_edit_cond = PTHREAD_COND_INITIALIZER;
 
 string workerNoGlobal = "";
 
-volatile bool adder_sleep = false;
-bool trace_end = false;
-bool debug_mode = false;
+std::atomic<bool> adder_sleep (false);
+std::atomic<bool> trace_end (false);
+std::atomic<bool> debug_mode (false);
 
 int adderSleepThreshold = 500;
 int adderWakeThreshold = 100;
