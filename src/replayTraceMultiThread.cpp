@@ -28,6 +28,7 @@ pthread_cond_t queue_edit_cond = PTHREAD_COND_INITIALIZER;
 
 bool adder_sleep = false;
 bool trace_end = false;
+bool debug_mode = false;
 
 int adderSleepThreshold = 500;
 int adderWakeThreshold = 100;
@@ -40,7 +41,7 @@ void traceUser(ofstream &logfile)
     int timeCost = 0;
     traceItemST thisUserTrace;
     set<opType> localOP = {op_close,op_closedir};
-    cout << "[USER]: Start" << endl;
+    //cout << "[USER]: Start" << endl;
     opType tempTraceOP;
     int use_count = 0;
     while (!trace_end || traceQueue.size() > 0)
@@ -89,7 +90,7 @@ void traceUser(ofstream &logfile)
     }
     logfile.close();
     cout <<traceQueue.size() <<endl;
-    cout << "[USER--END] Used: " << use_count << endl;
+    //cout << "[USER--END] Used: " << use_count << endl;
 }
 
 void *traceAdder(void *adderParaPara)
@@ -135,7 +136,7 @@ void *traceAdder(void *adderParaPara)
     }
     trace_end = true;
     trace.close();
-    cout << "[ADDER--END] ADD: " << addCount << endl;
+    //cout << "[ADDER--END] ADD: " << addCount << endl;
 }
 
 int main(int argc, char **argv)
@@ -156,16 +157,34 @@ int main(int argc, char **argv)
     }
     else
     {
-        workerNo = string(argv[4]);
+        if (strcmp(argv[4],"Debug")==0)
+        {
+            debug_mode = true;
+            workerNo = "";
+        }else
+        {
+            workerNo = string(argv[4]);
+        }
+        
     }
     string logDir = "/home/ceph/cyx/metadata-management/experiments/scripts/migrate/ai-training/traceLog/";
-    //string logDir = "/home/ceph/duo/traceReplay_multiThread/test/";
+    
+    vector<string> subTracePath = splitString_STL(tracePath, "/");
+    //string workPath = "/mnt/ceph-client-1/trace/"+subTracePath.back();
+    string workPath = workString + subTracePath.back();
+    if (debug_mode)
+    {
+        cout << "[WAN] Debug Mode Now"<<endl;
+        logDir = "/home/ceph/duo/traceReplay_multiThread/test/";
 
+    }
+    
     string logPath = logDir + *(splitString_STL(workString, "/").end() - 2) + workerNo + ".log";
+
     ofstream logFile;
     logFile.open(logPath.c_str(), ios::trunc);
 
-    cout << "[INFO]: Current Log File: " << logPath.c_str() << endl;
+    cout << "[INFO]: Current Log File: " << logPath << endl;
 
     if (modeString == "init")
     {
@@ -181,9 +200,7 @@ int main(int argc, char **argv)
         return 0;
     }
 
-    vector<string> subTracePath = splitString_STL(tracePath, "/");
-    //string workPath = "/mnt/ceph-client-1/trace/"+subTracePath.back();
-    string workPath = workString + subTracePath.back();
+    
     string thisLine;
     ifstream trace;
     vector<traceItemST> traceVector;
